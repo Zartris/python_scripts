@@ -42,8 +42,6 @@ class Section:
         return np.array(result)
 
     def interpolate_dist(self, meter=0.2, deg=1):
-        # if self.glue_section:
-        #     deg = 50
         if self.number_of_points == 1:
             return np.array(self.points)
         N = np.array(np.linspace(0, 1, self.number_of_points))
@@ -65,9 +63,6 @@ class Section:
             cur = p
         number = int(np.rint(dist / meter))
         res = self.interpolate(number, deg)
-        # if self.glue_section:
-        #     i = int(np.rint(number / 4))
-        #     res = res.transpose()[i:-i].transpose()
         return res
 
     def try_fit(self, deg, max_tolerance_meter):
@@ -568,6 +563,7 @@ def np_polyfit(deg):
     plot_axis(data.transpose(), traj, "TEST", dpi=100)
     dist_in_m = 0.1
     traj = interpolate_dist(dist_in_m, traj)
+    d = traj[:-1] - traj[1:]
     save_traj(f"d{str(int(dist_in_m*100))}cm_interp", traj)
     debug = 0
     ax = plot_data(data.transpose(), traj, "TEST", show=True)
@@ -853,10 +849,13 @@ def interpolate_dist(dist_in_m, traj):
         dist = np.linalg.norm(point - last_point)
         number = int(np.rint(dist / dist_in_m))
         interp = np.linspace(last_point, point, number)
-        result.append(interp)
+        if np.all(point == traj[-1]):
+            result.append(interp)
+        else:
+            result.append(interp[:-1])
         debug = 0
     result = np.concatenate(result, axis=0)
-
+    diff = np.linalg.norm(result[:-1] - result[1:], axis=1)
     if transposed:
         debug = 0
         result = result.transpose()
