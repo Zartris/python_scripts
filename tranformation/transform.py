@@ -1,8 +1,6 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from transformation_python.Data.UE4Data import State
-
 
 ###################################################
 # CLASSES                                         #
@@ -418,9 +416,9 @@ class Transform(object):
         self.rotation = TRotation().set_matrix(rotation, axis_order)
         return self
 
-
-camera_state_in_drone_coord = State({'x': 0.0, 'y': 0.0, 'z': -5.0},
-                                    {'pitch': -90, 'roll': -180, 'yaw': -90})
+#
+# camera_state_in_drone_coord = State({'x': 0.0, 'y': 0.0, 'z': -5.0},
+#                                     {'pitch': -90, 'roll': -180, 'yaw': -90})
 
 
 def get_drone_to_camera_transformation():
