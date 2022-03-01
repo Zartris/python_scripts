@@ -29,8 +29,6 @@ pygame.display.set_caption("3D projection in pygame!")
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 center = (int(WIDTH / 2), int(HEIGHT / 2))
 
-
-
 roll = 0
 pitch = 0
 yaw = 0
@@ -39,8 +37,11 @@ camera_translation = np.array([-30, 0, 0]).astype(float)
 pygame.init()
 fps_font = pygame.font.SysFont("Arial", 20)
 clock = pygame.time.Clock()
-# Zenmuse x3 (dji camera) f= 22 or 35 - https://www.dji.com/dk/zenmuse-x3/info
-camera = CameraInfo(focal=22, FOV=94, image_width=1280, image_height=720)
+# Zenmuse x3 (dji camera) f= 22 or 35 - https://www.dji.com/dk/zenmuse-x3/info  1/2.3 = 6.17 x 4.55  mm = https://en.wikipedia.org/wiki/Image_sensor_format
+camera = CameraInfo(focal=22, FOV=94, image_width=1280, image_height=720, sensor_width=6.17, sensor_height=4.55)
+# Zenmuse x7 https://www.bhphotovideo.com/lit_files/372177.pdf,  https://www.dji.com/dk/zenmuse-x7/info 23.5×15.7 mm
+camera = CameraInfo(focal=16, FOV=0, image_width=1280, image_height=720, sensor_width=23.5, sensor_height=15.7)
+
 orbit_center = np.array([0, 0, 0]).astype(float)
 
 

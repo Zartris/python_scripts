@@ -1,3 +1,5 @@
+from abc import abstractmethod
+
 import pygame, math
 import numpy as np
 
@@ -13,8 +15,9 @@ from tranformation.transform import TRotation, Transform
 class Display3D:
     """ A group of objects which can be displayed on a Pygame screen """
 
-    def __init__(self, width, height, name="Display3D"):
+    def __init__(self, width, height, name="Display3D", verbose=False):
         super().__init__()
+        self.verbose = verbose
         self.width = width
         self.height = height
         self.clock = pygame.time.Clock()
@@ -31,13 +34,25 @@ class Display3D:
         self.displayEdges = False
         self.displayFaces = True
         self.displayFPS = True
-        self.displaceTraj = True
-        self.displayAxis = True
+        self.displaceTraj = False
+        self.displayAxis = False
+        self.displayCenter = True
+        self.do_coverage = True
 
         # self.perspective = False  # 300.
 
-        # CameraInfo -> Zenmuse x3 (dji camera) f= 22 or 35 - https://www.dji.com/dk/zenmuse-x3/info
-        self.camera = CameraInfo(focal=22, FOV=94, image_width=1280, image_height=720)
+        # Zenmuse x3 (dji camera) f= 22 or 35 - https://www.dji.com/dk/zenmuse-x3/info  1/2.3 = 6.17 x 4.55  mm = https://en.wikipedia.org/wiki/Image_sensor_format
+        self.camera = CameraInfo(focal=22, FOV=94,
+                                 image_width=1280, image_height=720,
+                                 render_width=1280, render_height=720,
+                                 sensor_width=6.17, sensor_height=4.55)
+
+        # Zenmuse x7 https://www.bhphotovideo.com/lit_files/372177.pdf,  https://www.dji.com/dk/zenmuse-x7/info 23.5×15.7 mm
+        self.camera = CameraInfo(focal=16, FOV=0,
+                                 image_width=6016, image_height=3376,
+                                 render_width=1280, render_height=720,
+                                 sensor_width=23.5, sensor_height=15.7)
+
         self.camera_translation = np.array([-80, 0, 80]).astype(float)
         self.camera_rpy = np.array([0., 0., 0.])
         self.camera_view_dir = np.array([1., 0., 0.])
@@ -46,7 +61,7 @@ class Display3D:
         t, _ = self.compute_transform(self.camera_rpy, self.camera_translation, not self.use_orbit)
         self.camera.update_transform(t)
 
-        self.third_person = True
+        self.third_person = False
         self.camera_obj_translation = np.array([-80, 0, 80]).astype(float)
         self.camera_obj_rpy = np.array([0., 0., 0.])
 
@@ -103,162 +118,32 @@ class Display3D:
         fps_surface = pygame.font.SysFont("Arial", 20).render(fps_text, True, pygame.Color("green"))
         self.screen.blit(fps_surface, (self.width - 30, 10))
 
-    def display(self, verbose=False):
-        self.screen.fill(self.background)
-        transforms = []
+    def get_transform_stack(self):
+        transforms_stack = []
         r = Rotation.from_euler("XYZ", self.camera_rpy, degrees=True).as_matrix()
         if self.use_orbit:
             # Transform to orbit_center
             orbit_rotation = TRotation().set_matrix(r, "XYZ")
             orbit_transform = Transform(np.expand_dims(self.orbit_center, axis=1), orbit_rotation,
                                         translate_before_rotate=False)
-            transforms.append(orbit_transform)
+            transforms_stack.append(orbit_transform)
             camera_transform = Transform(np.expand_dims(-self.camera_translation, axis=1))
-            transforms.append(camera_transform)
+            transforms_stack.append(camera_transform)
         else:
             camera_rotation = TRotation().set_matrix(r, "XYZ")
             camera_transform = Transform(np.expand_dims(-self.camera_translation, axis=1), camera_rotation,
                                          translate_before_rotate=True)
-            transforms.append(camera_transform)
+            transforms_stack.append(camera_transform)
         self.camera.update_transform(camera_transform)
+        return transforms_stack
 
-        if self.displayAxis:
-            p0 = np.array([0, 0, 0])
-            px = np.array([100, 0, 0])
-            py = np.array([0, 100, 0])
-            pz = np.array([0, 0, 100])
-            colors = [RED, GREEN, BLUE]
-            p0_im = self.camera.transform_world_to_image(p0)
-            for c, p in zip(colors, [px, py, pz]):
-                p_im = self.camera.transform_world_to_image(p)
-                pygame.draw.line(self.screen, c, p0_im, p_im, width=5)
+    @abstractmethod
+    def display(self, verbose=False):
+        pass
 
-        counter = 0
-        for name, obj in self.objects.items():
-            o: Wireframe = obj
-            if name == "camera":
-                if self.third_person:
-                    r = Rotation.from_euler("XYZ", self.camera_obj_rpy, degrees=True).as_matrix()
-
-                    cam_r = TRotation().set_matrix(r, "XYZ")
-                    cam_t = Transform(np.expand_dims(self.camera_obj_translation, axis=1), cam_r,
-                                      translate_before_rotate=False)
-                    o = o.transform(cam_t)
-                else:
-                    continue
-
-            for t in transforms:
-                o = o.transform(t)
-            if self.displayFaces:
-                for index in o.sorted_vertices_ind():
-                    vertice = o.vertices[index]
-                    if self.camera_view_dir[0] == 1:
-                        if vertice[:, 0].max() > 0:
-                            if verbose:
-                                print("behind me!")
-                            continue
-                    else:
-                        if vertice[:, 0].min() < 0:
-                            if verbose:
-                                print("behind me!")
-                            continue
-                    normal = o.normals[index]
-                    color = o.vertice_colors[index]
-
-                    towards_us = np.dot(normal, self.camera_view_dir)
-
-                    # Only draw faces that face us
-                    if towards_us > 0:
-                        points_im = []
-                        x = 0
-                        y = 0
-                        for point in vertice:
-                            depht = 0
-                            u, v = self.camera.transform_cam_to_image(point)
-                            points_im.append((u, v))
-                            x += np.clip(u / self.camera.image_width, -1, 1)
-                            y += np.clip(v / self.camera.image_height, -1, 1)
-                        if abs(x) == 3 or abs(y) == 3:
-                            debug = 0
-                            continue
-                        a = self.area(points_im)
-                        if a >= 10000000:
-                            print(f"skipped by area: {a}")
-                            continue
-                        counter += 1
-                        if verbose:
-                            print(f"drawing: {counter}")
-                        pygame.draw.polygon(self.screen, color, points_im, 0)
-
-            # if self.displayEdges:
-            #     for (n1, n2) in wireframe.edges:
-            #         if self.perspective:
-            #             if wireframe.nodes[n1][2] > -self.perspective and nodes[n2][2] > -self.perspective:
-            #                 z1 = self.perspective / (self.perspective + nodes[n1][2])
-            #                 x1 = self.width / 2 + z1 * (nodes[n1][0] - self.width / 2)
-            #                 y1 = self.height / 2 + z1 * (nodes[n1][1] - self.height / 2)
-            #
-            #                 z2 = self.perspective / (self.perspective + nodes[n2][2])
-            #                 x2 = self.width / 2 + z2 * (nodes[n2][0] - self.width / 2)
-            #                 y2 = self.height / 2 + z2 * (nodes[n2][1] - self.height / 2)
-            #
-            #                 pygame.draw.aaline(self.screen, colour, (x1, y1), (x2, y2), 1)
-            #         else:
-            #             pygame.draw.aaline(self.screen, colour, (nodes[n1][0], nodes[n1][1]),
-            #                                (nodes[n2][0], nodes[n2][1]), 1)
-            #
-            # if self.displayNodes:
-            #     for node in nodes:
-            #         pygame.draw.circle(self.screen, colour, (int(node[0]), int(node[1])), self.nodeRadius, 0)
-        if self.displaceTraj:
-            last_point = None
-            for i, p in enumerate(self.traj[1]):
-                if i % 100 == 0 or i == 0:
-                    p_im = self.camera.transform_world_to_image(p)
-                    if i == 0:
-                        last_point = p_im
-                        continue
-                    pygame.draw.line(self.screen, RED, last_point, p_im, width=5)
-                    last_point = p_im
-
-        if self.displayFPS:
-            self.show_fps()
-        # pygame.display.flip()
-        pygame.display.update()
-
+    @abstractmethod
     def run(self, traj=None):
-        """ Display wireframe on screen and respond to keydown events """
-        running = True
-        key_down = False
-        index = 0
-        self.displaceTraj = self.displaceTraj if traj is not None else False
-        self.traj = traj
-        while running:
-            self.clock.tick(50)
-            if traj is None:
-                self.handle_user_input()
-                self.camera_rpy[1] = 0
-            else:
-                self.handle_user_input()
-                if self.third_person:
-                    self.camera_obj_translation = traj[1][index]
-                    self.camera_obj_rpy = np.array([0, 0, traj[2][index][0]])
-                    if index % 10 == 0:
-                        print(f"STATE: i: {index} t: {self.camera_obj_translation}"
-                              f" roll: {self.camera_obj_rpy[0]}, pitch: {self.camera_obj_rpy[1]}, yaw:{self.camera_obj_rpy[2]}")
-                else:
-                    self.camera_translation = traj[1][index]
-                    self.camera_rpy = np.array([0, 0, traj[2][index][0]])
-                    if index % 10 == 0:
-                        print(f"STATE: i: {index} t: {self.camera_translation}"
-                              f" roll: {self.camera_rpy[0]}, pitch: {self.camera_rpy[1]}, yaw:{self.camera_rpy[2]}")
-                if index == 1720:
-                    debug = 0
-            # self.update_objects()
-            self.display(index == 1720)
-            if not self.pause:
-                index += self.increment_speed
-        pygame.quit()
+        pass
 
     def handle_user_input(self):
         change = False
@@ -285,8 +170,8 @@ class Display3D:
             change = True
             self.handle_key_input(key)
         if change:
-            print(f"STATE: t: {self.camera_translation}"
-                  f" roll: {self.camera_rpy[0]}, pitch: {self.camera_rpy[1]}, yaw:{self.camera_rpy[2]}")
+            self.print_info(f"STATE: t: {self.camera_translation}"
+                            f" roll: {self.camera_rpy[0]}, pitch: {self.camera_rpy[1]}, yaw:{self.camera_rpy[2]}")
 
     def handle_key_input(self, key):
         if key == pygame.K_ESCAPE:
@@ -310,15 +195,15 @@ class Display3D:
             self.camera_rpy[2] -= 90
         elif key == ord('f'):
             self.use_orbit = not self.use_orbit
-            print(f"orbit mode: {self.use_orbit}")
+            self.print_info(f"orbit mode: {self.use_orbit}")
         elif key == ord('t'):
             self.increment_speed += 1
-            print(f"speed: {self.increment_speed}")
+            self.print_info(f"speed: {self.increment_speed}")
         elif key == pygame.K_SPACE:
             self.increment_speed = 0
         elif key == ord('y'):
             self.increment_speed -= 1
-            print(f"speed: {self.increment_speed}")
+            self.print_info(f"speed: {self.increment_speed}")
         elif key == pygame.K_1:
             self.third_person = True
         elif key == pygame.K_2:
@@ -334,11 +219,11 @@ class Display3D:
             pygame.mouse.set_visible(not key_down)
         elif event.button == 4 and key_down:  # Scroll forward
             translate = self.camera.t_c2w(np.array([-1, 0, 0])).squeeze()
-            print(f"B camera_translation: {self.camera_translation}, A camera_translation {translate}")
+            self.print_info(f"B camera_translation: {self.camera_translation}, A camera_translation {translate}")
             self.camera_translation = translate
         elif event.button == 5 and key_down:  # Scroll forward
             translate = self.camera.t_c2w(np.array([1, 0, 0])).squeeze()
-            print(f"B camera_translation: {self.camera_translation}, A camera_translation {translate}")
+            self.print_info(f"B camera_translation: {self.camera_translation}, A camera_translation {translate}")
             if self.use_orbit:
                 self.camera_translation = np.array([translate[0], 0, 0])
             else:
@@ -365,3 +250,7 @@ class Display3D:
             # roll, pitch, yaw = lookat(np.array([0, 0, 0]), target)
             # print(f"t: {camera_translation} roll: {roll}, pitch: {pitch}, yaw:{yaw}")
         pygame.mouse.set_pos(self.screen_center)
+
+    def print_info(self, msg: str):
+        if self.verbose:
+            print(msg)

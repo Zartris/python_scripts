@@ -6,6 +6,7 @@ Install `pyembree` for a speedup (600k+ rays per second)
 from scipy.spatial.transform.rotation import Rotation
 from stl import mesh
 
+from Visualizer.CoverageDisplay3D import CoverageDisplay3D
 from Visualizer.Display3D import Display3D
 from objects.mesh_base import Wireframe
 import numpy as np
@@ -40,7 +41,7 @@ def readfile_multiple_values(filename, split_char=" "):
 
 
 if __name__ == '__main__':
-    view = Display3D(1280, 720)
+    view = CoverageDisplay3D(1280, 720)
     wt = Wireframe.from_stl_path('data/in/turbine_v2.stl')
     r = Rotation.from_euler("XYZ", [0, 0, 90], degrees=True).as_matrix()
 

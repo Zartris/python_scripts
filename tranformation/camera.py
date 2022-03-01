@@ -8,9 +8,10 @@ from tranformation.transform import Transform, TRotation
 class CameraInfo:
     def __init__(self, focal: float, FOV: float,
                  image_width: int, image_height: int,
+                 render_width, render_height,
                  # camera_state_in_drone_coord: State,
-                 # sensor_width: float = 2.,
-                 # sensor_height: float = 1.125
+                 sensor_width: float = 2.,
+                 sensor_height: float = 1.125
                  ):
         """
         :param focal: in mm
@@ -24,7 +25,16 @@ class CameraInfo:
         self.FOV = FOV
         self.image_width = image_width
         self.image_height = image_height
+        self.render_size = (render_width, render_height)
+        self.sensor_w = sensor_width
+        self.sensor_h = sensor_height
+        # camera_sensor_w = 6.17  # mm
+        # camera_sensor_h = 4.55  # mm
+
         self.ratio = image_width / image_height
+        if self.ratio != render_width / render_height:
+            print(
+                f"Camera image size and rendersize is not exactly the same ratio: im_ratio={self.ratio} and render_ratio={image_width / image_height} ")
         self.t_w2c: Transform = None
         self.t_c2w = None
 
@@ -57,10 +67,12 @@ class CameraInfo:
         x = 0 is center of image
         y = 0 is center of image
         procentage"""
-        camera_sensor_w = 6.17  # mm
-        camera_sensor_h = 4.55  # mm
+        camera_sensor_w = self.sensor_w  # mm
+        camera_sensor_h = self.sensor_h  # mm
         w = 4096
         h = 2160
+        w = self.image_width
+        h = self.image_height
         ratio = self.ratio  # width / height
         offset_x = 1
         offset_y = 1
@@ -77,8 +89,8 @@ class CameraInfo:
         x, y = self.perspective_projection(point)
         u, v = self.pixel_coord(x, y)
         if isinstance(u, float):
-            return u * self.image_width, v * self.image_height
-        return u[0] * self.image_width, v[0] * self.image_height
+            return u * self.render_size[0], v * self.render_size[1]
+        return u[0] * self.render_size[0], v[0] * self.render_size[1]
 
     def transform_world_to_image(self, point):
         point = self.transform_to_camera(point)
@@ -104,7 +116,7 @@ if __name__ == '__main__':
     point = np.array([1, 0, 0.1])
     for i in range(20):
         point += np.array([i, 0, 0])
-        p1 = point + np.array([0, 0.1 , 0])
+        p1 = point + np.array([0, 0.1, 0])
         p2 = point + np.array([0, -0.5, 0])
         im = np.zeros((720, 1280))
         for p in [p1, p2]:

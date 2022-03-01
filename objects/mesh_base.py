@@ -87,6 +87,8 @@ class Wireframe:
         self.vertices = vertices
         self.vertice_colors = [random_color() for _ in vertices] if vertice_colors is None else vertice_colors
         self.normals = self.compute_normals() if normals is None else normals
+        self.center = self.compute_center()
+        self.seen = np.zeros(len(self.vertices), int)
 
     def add_vertices(self, vertice_array):
         """ Append 1s to a list of 3-tuples and add to self.nodes. """
@@ -118,6 +120,18 @@ class Wireframe:
         for i, (x, y, z) in enumerate(self.normals):
             print(f"  {i}:\t{(x, y, z)}")
 
+    def output_coverage(self):
+        print("\n --- Coverage --- ")
+        print(f"  total amount covered: {(len(np.where(self.seen == 1)[0]) / len(self.seen)) * 100}%")
+        print(f"  total triangles: {len(self.seen)} and covered: {len(np.where(self.seen == 1)[0])}")
+        debug = 0
+
+    def get_coverage(self):
+        return (len(np.where(self.seen == 1)[0]) / len(self.seen)) * 100
+
+    def get_coverage_text(self):
+        return f"{len(np.where(self.seen == 1)[0])}/{len(self.seen)}"
+
     def transform(self, transform):
         """ Apply a transformation defined by a transformation matrix. """
         transformed_vertices = []
@@ -137,8 +151,12 @@ class Wireframe:
         return 0.5 * (min_values + max_values)
 
     def sorted_vertices_ind(self):
-        ind = np.argsort(self.vertices[:, :, 0].min(axis=1))
-        return ind
+        l = np.abs(self.vertices[:, :, 0].min(axis=1))
+        l2 = np.abs(self.center[:, 0])
+        ind = np.lexsort((l2, l))
+        # ind = np.argsort(self.vertices[:, :, 0].min(axis=1))
+        ind_inv = ind[::-1]
+        return ind_inv
 
     def compute_normals(self):
         normals = []
@@ -149,6 +167,16 @@ class Wireframe:
             normals.append(normal)
         self.normals = np.array(normals)
         return self.normals
+
+    def compute_center(self):
+        centers = []
+        for vertice in self.vertices:
+            c = np.array([0, 0, 0], float)
+            for point in vertice:
+                c += point
+            c /= 3
+            centers.append(c)
+        return np.array(centers)
 
     def update(self):
         """ Override this function to control wireframe behaviour. """
