@@ -82,7 +82,7 @@ class Display3D:
         self.right_mouse = False
         self.keys_down = []
 
-        self.increment_speed = 5
+        self.increment_speed = 1
         self.pause = False
         pygame.init()
 

@@ -1,3 +1,4 @@
+import time
 from abc import abstractmethod, ABC
 from pathlib import Path
 
@@ -6,6 +7,8 @@ import numpy as np
 
 from tranformation.camera import CameraInfo
 from stl import mesh
+
+from tranformation.transform import Transform
 
 
 class MeshBase(ABC):
@@ -107,6 +110,7 @@ class Wireframe:
         if len(self.vertices) > 1:
             self.output_vertices()
             self.output_normals()
+            self.output_coverage()
 
     def output_vertices(self):
         print("\n --- Vertices --- ")
@@ -122,17 +126,27 @@ class Wireframe:
 
     def output_coverage(self):
         print("\n --- Coverage --- ")
-        print(f"  total amount covered: {(len(np.where(self.seen == 1)[0]) / len(self.seen)) * 100}%")
-        print(f"  total triangles: {len(self.seen)} and covered: {len(np.where(self.seen == 1)[0])}")
-        debug = 0
+        print(f"  total amount covered: {(len(np.where(self.seen >= 1)[0]) / len(self.seen)) * 100}%")
+        print(f"  total triangles: {len(self.seen)} and covered: {len(np.where(self.seen >= 1)[0])}")
+
+    def output_avg_vertice_per_img(self, num_img):
+        s = np.sum(self.seen)
+        print("\n --- avg vertice --- ")
+        print(f"  avg vertice seen per image: sum_of_triangle_seen:{s} / timesteps:{num_img} = {s / num_img}")
+        return s / num_img
+
+    def output_seen_count_per_vertice(self):
+        print("\n --- Seen count per vertice --- ")
+        for i, count in enumerate(self.seen):
+            print(f"  i={i}: {count}")
 
     def get_coverage(self):
-        return (len(np.where(self.seen == 1)[0]) / len(self.seen)) * 100
+        return (len(np.where(self.seen >= 1)[0]) / len(self.seen)) * 100
 
     def get_coverage_text(self):
-        return f"{len(np.where(self.seen == 1)[0])}/{len(self.seen)}"
+        return f"{len(np.where(self.seen >= 1)[0])}/{len(self.seen)}"
 
-    def transform(self, transform):
+    def transform(self, transform:Transform):
         """ Apply a transformation defined by a transformation matrix. """
         transformed_vertices = []
         for vertice in self.vertices:
@@ -150,6 +164,12 @@ class Wireframe:
         max_values = self.nodes[:, :-1].max(axis=0)
         return 0.5 * (min_values + max_values)
 
+    def get_boundary_points(self):
+        min_x = self.vertices[:, :, 0].argmin(axis=0)
+        min_x = self.vertices[:, :, 0].argmin(axis=0)
+        min_x = self.vertices[:, :, 0].argmin(axis=0)
+        min_x = self.vertices[:, :, 0].argmin(axis=0)
+
     def sorted_vertices_ind(self):
         l = np.abs(self.vertices[:, :, 0].min(axis=1))
         l2 = np.abs(self.center[:, 0])
@@ -159,24 +179,34 @@ class Wireframe:
         return ind_inv
 
     def compute_normals(self):
-        normals = []
-        for vertice in self.vertices:
-            v1 = vertice[1] - vertice[0]
-            v2 = vertice[2] - vertice[0]
-            normal = unit_vector(np.cross(v1, v2))
-            normals.append(normal)
-        self.normals = np.array(normals)
+        v1 = self.vertices[:, 1] - self.vertices[:, 0]
+        v2 = self.vertices[:, 2] - self.vertices[:, 0]
+        cross1 = np.cross(v1, v2)
+        norm = np.linalg.norm(cross1, axis=1)
+        self.normals = (cross1.transpose() / norm).transpose()
+
+        # Commented out because it is too slow, but here is the more readable version
+        # normals = []
+        # for vertice in self.vertices:
+        #     v1 = vertice[1] - vertice[0]
+        #     v2 = vertice[2] - vertice[0]
+        #     normal = unit_vector(np.cross(v1, v2))
+        #     normals.append(normal)
+        # self.normals = np.array(normals)
+
         return self.normals
 
     def compute_center(self):
-        centers = []
-        for vertice in self.vertices:
-            c = np.array([0, 0, 0], float)
-            for point in vertice:
-                c += point
-            c /= 3
-            centers.append(c)
-        return np.array(centers)
+        centers = np.sum(self.vertices, axis=1) / 3
+        # commented out because it is too slow
+        # centers = []
+        # for vertice in self.vertices:
+        #     c = np.array([0, 0, 0], float)
+        #     for point in vertice:
+        #         c += point
+        #     centers.append(c)
+        # centers = np.array(centers)
+        return centers
 
     def update(self):
         """ Override this function to control wireframe behaviour. """

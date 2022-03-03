@@ -62,6 +62,21 @@ class CameraInfo:
         y = self.focal_length * Y / Z
         return x, y
 
+    def perspective_projection_array(self, location: np.ndarray):
+        """
+         NOTE UNREAL x = Depth, y = Width, z = Height,
+         so we start converting these for easy understanding
+         :returns Film Coords x=width y=height (x=0 , y=0 is center) in mm
+        """
+        l = location.transpose()
+        X = l[1]
+        Y = l[2]
+        Z = l[0]
+
+        xs = self.focal_length * X / Z
+        ys = self.focal_length * Y / Z
+        return xs, ys
+
     def pixel_coord(self, x: float, y: float):
         """
         x = 0 is center of image
@@ -69,13 +84,25 @@ class CameraInfo:
         procentage"""
         camera_sensor_w = self.sensor_w  # mm
         camera_sensor_h = self.sensor_h  # mm
-        w = 4096
-        h = 2160
         w = self.image_width
         h = self.image_height
-        ratio = self.ratio  # width / height
-        offset_x = 1
-        offset_y = 1
+        mx = w / camera_sensor_w  # pixel / mm
+        my = h / camera_sensor_h  # pixel / mm
+        u = (mx * x) + (w / 2)
+        v = (my * y) + (h / 2)
+        # u = (mx * x / self.image_width) + offset_x / 2  # * width
+        # v = -((my * y / self.image_height) + offset_y / 2)  # * height
+        return u / w, v / h
+
+    def pixel_coord_array(self, x: float, y: float):
+        """
+        x = 0 is center of image
+        y = 0 is center of image
+        procentage"""
+        camera_sensor_w = self.sensor_w  # mm
+        camera_sensor_h = self.sensor_h  # mm
+        w = self.image_width
+        h = self.image_height
         mx = w / camera_sensor_w  # pixel / mm
         my = h / camera_sensor_h  # pixel / mm
         u = (mx * x) + (w / 2)
@@ -91,6 +118,14 @@ class CameraInfo:
         if isinstance(u, float):
             return u * self.render_size[0], v * self.render_size[1]
         return u[0] * self.render_size[0], v[0] * self.render_size[1]
+
+    def transform_cam_to_image_array(self, points):
+        "if u and v is in range [0,1] then it is inside the frame"
+        xs, ys = self.perspective_projection_array(points)
+        us, vs = self.pixel_coord(xs, ys)
+        us = np.expand_dims(us.transpose(), axis=2)
+        vs = np.expand_dims(vs.transpose(), axis=2)
+        return us * self.render_size[0], vs * self.render_size[1]
 
     def transform_world_to_image(self, point):
         point = self.transform_to_camera(point)

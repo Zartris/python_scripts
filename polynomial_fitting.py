@@ -342,9 +342,9 @@ def pf(data, deg, smooth):
 
 def polynomial_fit(deg: list, smooth: list):
     from scipy.interpolate import splprep, splev
-    px = readfile("data/in/px_160.txt", expand=True)
-    py = readfile("data/in/py_160.txt", expand=True)
-    pz = readfile("data/in/pz_160.txt", expand=True)
+    px = readfile("data/in/gp_output/px_160.txt", expand=True)
+    py = readfile("data/in/gp_output/py_160.txt", expand=True)
+    pz = readfile("data/in/gp_output/pz_160.txt", expand=True)
 
     data = np.concatenate((px, py), axis=1)
     data = np.concatenate((data, pz), axis=1)
@@ -551,16 +551,16 @@ def split_data_into_sections(data):
     return splitted_points
 
 
-def np_polyfit(deg, skip_rest=True):
-    px = readfile("data/in/px_160.txt", expand=True)
-    py = readfile("data/in/py_160.txt", expand=True)
-    pz = readfile("data/in/pz_160.txt", expand=True)
+def np_polyfit(deg, folder="data/in/gp_output", out_prefix="", skip_rest=True):
+    px = readfile(f"{folder}/px_160.txt", expand=True)
+    py = readfile(f"{folder}/py_160.txt", expand=True)
+    pz = readfile(f"{folder}/pz_160.txt", expand=True)
     data_points = np.concatenate((px, py, pz), axis=1)
     # data_points = np.concatenate((data_points, pz), axis=1)
     # Normals
-    nx = readfile("data/in/nx_160.txt", expand=True)
-    ny = readfile("data/in/ny_160.txt", expand=True)
-    nz = readfile("data/in/nz_160.txt", expand=True)
+    nx = readfile(f"{folder}/nx_160.txt", expand=True)
+    ny = readfile(f"{folder}/ny_160.txt", expand=True)
+    nz = readfile(f"{folder}/nz_160.txt", expand=True)
     normals = np.concatenate((nx, ny, nz), axis=1)
     data = np.concatenate((data_points, normals), axis=1)
 
@@ -589,15 +589,15 @@ def np_polyfit(deg, skip_rest=True):
         new_traj = np.concatenate(new_traj, axis=0)
         traj.append(new_traj)
     traj = np.array(traj)
-    save_traj(f"fit_noiterp", traj)
-    save_traj(f"no_fit", data)
-    plot_axis(data.transpose(), traj, "TEST", dpi=100)
+    save_traj(f"{out_prefix}fit_noiterp", traj)
+    save_traj(f"{out_prefix}no_fit", data)
+    plot_axis(data.transpose(), traj, f"{out_prefix}", dpi=100)
     dist_in_m = 0.05
     # for i in range(2, 10):
     #     dist_in_m = i / 100
     traj = interpolate_dist(dist_in_m, traj)
     d = traj[:-1] - traj[1:]
-    save_traj(f"d{str(int(dist_in_m * 100))}cm_interp", traj)
+    save_traj(f"{out_prefix}d{str(int(dist_in_m * 100))}cm_interp", traj)
     debug = 0
     ax = plot_data(data.transpose(), traj, "TEST", show=True)
 
@@ -702,15 +702,15 @@ def np_polyfit(deg, skip_rest=True):
 
 
 def np_polyfit_old(deg):
-    px = readfile("data/in/px_160.txt", expand=True)
-    py = readfile("data/in/py_160.txt", expand=True)
-    pz = readfile("data/in/pz_160.txt", expand=True)
+    px = readfile("data/in/gp_output/px_160.txt", expand=True)
+    py = readfile("data/in/gp_output/py_160.txt", expand=True)
+    pz = readfile("data/in/gp_output/pz_160.txt", expand=True)
     data_points = np.concatenate((px, py, pz), axis=1)
     # data_points = np.concatenate((data_points, pz), axis=1)
     # Normals
-    nx = readfile("data/in/nx_160.txt", expand=True)
-    ny = readfile("data/in/ny_160.txt", expand=True)
-    nz = readfile("data/in/nz_160.txt", expand=True)
+    nx = readfile("data/in/gp_output/nx_160.txt", expand=True)
+    ny = readfile("data/in/gp_output/ny_160.txt", expand=True)
+    nz = readfile("data/in/gp_output/nz_160.txt", expand=True)
     normals = np.concatenate((nx, ny, nz), axis=1)
     data = np.concatenate((data_points, normals), axis=1)
     # Remove duplicates:
@@ -892,7 +892,7 @@ def interpolate_dist(dist_in_m, traj, include_small_sections=False, expected_num
     last_dist = 0
     for i, point in enumerate(traj):
         if i == 0:
-            last_point = traj[i - 1]
+            last_point = traj[i]
             continue
 
         dist = np.linalg.norm(point - last_point)
@@ -979,7 +979,8 @@ def interpolate_dist_rotation(dist_in_m, traj, roations, include_small_sections=
 
 if __name__ == '__main__':
     deg = 1
-    np_polyfit(deg)
+    np_polyfit(deg, folder="data/in/cheat_output", out_prefix="cheat_")
+    debug = 0
     values = readfile_multiple_values("data/in/gp_path.txt", expand=False)
     values = remove_duplicates(values, 6)
     pos = values[:, :3]

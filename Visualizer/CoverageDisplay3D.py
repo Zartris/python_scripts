@@ -1,3 +1,5 @@
+import time
+
 import pygame
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -16,6 +18,8 @@ class CoverageDisplay3D(Display3D):
         self.displayCoverage = True
         self.only_draw_if_seen = True
         self.dont_add_to_seen = False
+        self.seen_counter = 0
+        self.done = False
 
     def run(self, traj=None):
         """ Display wireframe on screen and respond to keydown events """
@@ -56,6 +60,10 @@ class CoverageDisplay3D(Display3D):
                 if coverage > self.converage:
                     self.converage = coverage
                     wt.output_coverage()
+                if index == max_index - 1 and not self.done:
+                    self.done = True
+                    wt.output_avg_vertice_per_img(index)
+                    wt.output_seen_count_per_vertice()
             pygame.display.update()
         pygame.quit()
 
@@ -92,8 +100,13 @@ class CoverageDisplay3D(Display3D):
             for t in transform_stack:
                 o = o.transform(t)
 
+            us, vs = self.camera.transform_cam_to_image_array(o.vertices)
+            uvs = np.concatenate([us, vs], axis=2)
+            if not self.object_in_image(uvs):
+                continue
             for index in o.sorted_vertices_ind():
                 vertice = o.vertices[index]
+                # Check if it is behind the camera
                 if self.camera_view_dir[0] == 1:
                     if vertice[:, 0].max() > 0:
                         self.print_info("behind me!")
@@ -102,6 +115,18 @@ class CoverageDisplay3D(Display3D):
                     if vertice[:, 0].min() < 0:
                         self.print_info("behind me!")
                         continue
+
+                # Check if we can see one of the points:
+                all_points_in_frame = True
+                one_point_in_frame = False
+                for point_index in range(len(vertice)):
+                    u, v = uvs[index][point_index]
+                    in_frame = self.point_in_frame(u, v)[0]
+                    all_points_in_frame = all_points_in_frame and in_frame
+                    one_point_in_frame = one_point_in_frame or in_frame
+
+                if not one_point_in_frame:
+                    continue
 
                 color = o.vertice_colors[index]
                 center = o.center[index]
@@ -178,13 +203,14 @@ class CoverageDisplay3D(Display3D):
                                     points_in = False
                                     break
                             if points_in:
-                                seen_counter += 1
+
                                 for j in range(len(p_im)):
                                     p1 = p_im[j]
                                     p2 = p_im[(j + 1) % len(p_im)]
                                     pygame.draw.line(self.screen, YELLOW, p1, p2, 5)
                                 if not self.dont_add_to_seen:
-                                    obj.seen[index] = 1
+                                    self.seen_counter += 1
+                                    obj.seen[index] += 1
                         debug = 0
 
                     # if self.displayEdges:
@@ -248,3 +274,19 @@ class CoverageDisplay3D(Display3D):
             coverage_text = wt.get_coverage_text()
             coverage_surface = pygame.font.SysFont("Arial", 20).render(coverage_text, True, pygame.Color("green"))
             self.screen.blit(coverage_surface, (self.width - 60, self.height - 30))
+
+    def object_in_image(self, uvs):
+        min_u = uvs[:, :, 0].min()
+        max_u = uvs[:, :, 0].max()
+        min_v = uvs[:, :, 1].min()
+        max_v = uvs[:, :, 1].max()
+        w, h = self.camera.render_size
+        if min_u > w:
+            return False
+        if max_u < 0:
+            return False
+        if min_v > h:
+            return False
+        if max_v < 0:
+            return False
+        return True
