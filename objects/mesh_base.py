@@ -212,6 +212,7 @@ class Wireframe:
         """ Override this function to control wireframe behaviour. """
         pass
 
+
     @staticmethod
     def from_stl(stl):
         vertices = stl.vectors

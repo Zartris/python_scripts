@@ -787,7 +787,10 @@ def polyfit_np_axis(d, data, full_dist, deg):
 
 def plot_data(data, new, title, save=False, show=True, dpi=600):
     # now lets plot it!
-
+    if data.shape[0] != 3:
+        data = data.transpose()
+    if new.shape[0] != 3:
+        new = new.transpose()
     fig = plt.figure(dpi=dpi)
     ax = Axes3D(fig)
     ax.grid(False)

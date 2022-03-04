@@ -1,4 +1,6 @@
+import json
 import time
+from pathlib import Path
 
 import pygame
 import numpy as np
@@ -6,8 +8,10 @@ from scipy.spatial.transform import Rotation
 
 from Visualizer.Display3D import Display3D
 from Visualizer.utils.colors import *
-from objects.mesh_base import Wireframe, unit_vector
+from objects.mesh_base import Wireframe, unit_vector, random_color
+from shortest_path import get_shortest_path
 from tranformation.transform import TRotation, Transform
+from utils.folder import get_project_root
 
 
 class CoverageDisplay3D(Display3D):
@@ -16,10 +20,14 @@ class CoverageDisplay3D(Display3D):
         self.max_dist_to_viewed_vertice_meter = 15
         self.converage = 0
         self.displayCoverage = True
-        self.only_draw_if_seen = True
+        self.only_draw_if_seen = False
         self.dont_add_to_seen = False
         self.seen_counter = 0
         self.done = False
+        self.path = None
+        self.read_path = True
+        self.data = {}
+        self.path_color = [random_color() for _ in range(300)]
 
     def run(self, traj=None):
         """ Display wireframe on screen and respond to keydown events """
@@ -29,6 +37,7 @@ class CoverageDisplay3D(Display3D):
         max_index = len(traj[0])
         self.displaceTraj = self.displaceTraj if traj is not None else False
         self.traj = traj
+
         while running:
             self.clock.tick(100)
             if traj is None:
@@ -48,6 +57,10 @@ class CoverageDisplay3D(Display3D):
                     if index % 10 == 0:
                         self.print_info(f"STATE: i: {index} t: {self.camera_translation}"
                                         f" roll: {self.camera_rpy[0]}, pitch: {self.camera_rpy[1]}, yaw:{self.camera_rpy[2]}")
+            # if "windturbine" in self.objects:
+            #     wt = self.objects["windturbine"]
+            #     self.path = self.read_json_file()
+            # self.path_color = [random_color() for _ in self.path[1]]
             # self.update_objects()
             self.display()
             if not self.pause:
@@ -244,6 +257,34 @@ class CoverageDisplay3D(Display3D):
                         continue
                     pygame.draw.line(self.screen, RED, last_point, p_im, width=5)
                     last_point = p_im
+        if self.path is not None:
+            indices, path, start_node = self.path
+            u, v = self.camera.transform_world_to_image(start_node)
+            last_node = (u, v)
+            for i, node in enumerate(path):
+                u, v = self.camera.transform_world_to_image(node)
+                c = self.path_color[i]
+                pygame.draw.line(self.screen, c, last_node, (u, v), width=5)
+                last_node = (u, v)
+        if self.read_path:
+            try:
+                self.data = self.read_json_file()
+            except:
+                pass
+            if "current_path" in self.data:
+                current_path = self.data["current_path"]
+                if "windturbine" in self.objects:
+                    wt = self.objects["windturbine"]
+                    path = wt.center[current_path]
+                    for i, node in enumerate(path):
+                        c = self.path_color[i]
+                        u, v = self.camera.transform_world_to_image(node)
+                        if i == 0:
+                            last_node = (u, v)
+                            continue
+                        pygame.draw.line(self.screen, c, last_node, (u, v), width=5)
+                        last_node = (u, v)
+            print("path read")
 
         if self.displayFPS:
             self.show_fps()
@@ -290,3 +331,9 @@ class CoverageDisplay3D(Display3D):
         if max_v < 0:
             return False
         return True
+
+    def read_json_file(self):
+        project_folder = get_project_root()
+        with open(str(Path(project_folder, 'data/out/shortest_path.json')), 'r') as json_file:
+            data = json.load(json_file)
+        return data
