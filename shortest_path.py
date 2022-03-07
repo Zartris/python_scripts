@@ -1,4 +1,5 @@
 import json
+import random
 import time
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial.transform import Rotation
 
+from Visualizer.utils.colors import get_distinct_color
 from objects.mesh_base import Wireframe, unit_vector
 from polynomial_fitting import plot_data
 from tranformation.transform import TRotation, Transform
@@ -16,6 +18,10 @@ from k_means_constrained import KMeansConstrained
 cache = {}
 data = {}
 use_cache = True
+
+
+def get_random_color():
+    return (np.random.uniform(0.1, 0.9), np.random.uniform(0.1, 0.9), np.random.uniform(0.1, 0.9))
 
 
 def read_json_file():
@@ -31,51 +37,8 @@ def dist(p_to, p_from=np.array([0, 0, 0])):
     return np.linalg.norm(v)
 
 
-def move_to(current: int, currentDistance: float, visited, node_order: list, max_dist: float, edges, save_key: str):
-    visited[current] = 1
-    if str(visited) in cache and not cache[str(visited)]:
-        return False, None, None
-    node_order.append(int(current))
-    valid_neighbors = np.where(edges[current] > -1)[0]
-    valid_edges = edges[current, valid_neighbors].squeeze()
-    indices = np.argsort(valid_edges).astype(int)
-    test = valid_edges[indices]
-    best_order = node_order
-    found_solution = False
-    all_visited = True
-    print(
-        f"\rDepth:{len(node_order)}, order[-10]={node_order if len(node_order) < 11 else node_order[-10:]}, dist={currentDistance}")
-    for neighbour_index in indices:
-        neighbour_index = valid_neighbors[neighbour_index]
-        if visited[neighbour_index] == 1:
-            continue
-        all_visited = False
-        distance = edges[current, neighbour_index]
-        newDistance = currentDistance + distance
-        if newDistance > max_dist:
-            continue
-        finished, resulting_dist, resulting_order = move_to(neighbour_index, newDistance, visited.copy(),
-                                                            node_order.copy(),
-                                                            max_dist, edges, save_key)
-        if finished and max_dist > resulting_dist:
-            max_dist = resulting_dist
-            best_order = resulting_order
-            found_solution = True
-    if all_visited:
-
-        if len(best_order) != len(edges[0]):
-            cache[str(visited)] = False
-        else:
-            debug = 0
-        data["current_path"] = node_order
-        data[save_key] = {"cache": cache, "max_dist": max_dist}
-        write_shortest_path(data)
-        return len(best_order) == len(edges[0]), currentDistance, best_order
-    return found_solution, max_dist, best_order
-
-
-def move_to2(current: int, currentDistance: float, visited: list, node_order: list, global_best_dist: float, edges,
-             points_to_sections, point_to_index, points):
+def move_to(current: int, currentDistance: float, visited: list, node_order: list, global_best_dist: float, edges,
+            points_to_sections, point_to_index, points):
     # Set visited:
     visited[current] = 1
     node_order.append(int(current))
@@ -124,12 +87,12 @@ def move_to2(current: int, currentDistance: float, visited: list, node_order: li
         if distance == -1:
             continue
         newDistance = currentDistance + distance
-        finished, resulting_dist, resulting_order = move_to2(neighbour_index, newDistance,
-                                                             visited.copy(),
-                                                             node_order.copy(),
-                                                             global_best_dist, edges,
-                                                             points_to_sections, point_to_index,
-                                                             points)
+        finished, resulting_dist, resulting_order = move_to(neighbour_index, newDistance,
+                                                            visited.copy(),
+                                                            node_order.copy(),
+                                                            global_best_dist, edges,
+                                                            points_to_sections, point_to_index,
+                                                            points)
         # if resulting_order == [4, 5, 0, 1, 17, 16, 9, 10, 8, 7, 21, 20, 6, 13, 14, 12, 11, 15, 18, 19, 3, 2]:
         #     debug = 0
         #     # print(f"c:{currentDistance}, nd:{newDistance}, rd:{resulting_dist}, ro:{resulting_order}")
@@ -182,7 +145,7 @@ def move_to2(current: int, currentDistance: float, visited: list, node_order: li
     return found_solution, best_sub_dist, best_order
 
 
-def shortest_path(sections, multiplier=10):
+def shortest_path(sections, multiplier=10, turn_cost=0, test_all_starting_positions=False):
     global cache
     # Change normals to not go in z
     m_sections = []
@@ -204,6 +167,8 @@ def shortest_path(sections, multiplier=10):
             points.append(s.p2)
             points_str.append(s.p2_str)
             normals.append(n)
+
+    # Compute cost between nodes (turn cost, dist cost, invalid turns=-1)
     edges = np.zeros((len(points), len(points)))
     for i, p in enumerate(points):
         n1 = normals[i]
@@ -213,7 +178,7 @@ def shortest_path(sections, multiplier=10):
             if np.all(n1 + n2 == np.zeros(3)):
                 d = -1
             else:
-                d = dist(p, p2)
+                d = dist(p, p2) + (turn_cost if np.all(n1 != n2) else 0)
             edges[i, j] = d
             edges[j, i] = d
 
@@ -236,20 +201,22 @@ def shortest_path(sections, multiplier=10):
             point_to_index[p] = i
         # unvisited[current] = currentDistance
         m1 = time.perf_counter()
-        found_solution, resulting_dist, resulting_order = move_to2(current, currentDistance, visited,
-                                                                   [], best_dist,
-                                                                   edges, points_to_sections,
-                                                                   point_to_index, points_str)
+        found_solution, resulting_dist, resulting_order = move_to(current, currentDistance, visited,
+                                                                  [], best_dist,
+                                                                  edges, points_to_sections,
+                                                                  point_to_index, points_str)
         print(f"Time: {time.perf_counter() - m1}")
         get_full_order(multiplier, resulting_order, resulting_dist, points_str, points_to_sections, start_node)
         if found_solution and resulting_dist < best_dist:
             best_dist = resulting_dist
             best_order = resulting_order
             print(f"Best: order={str(best_order)}, dist={best_dist}")
-        break
+        if not test_all_starting_positions:
+            break
     print("Done")
     print(f"Best: order={str(best_order)}, dist={best_dist}")
     resulting_points = []
+    point_normals = []
     skip = False
     for index in best_order:
         if skip:
@@ -260,7 +227,7 @@ def shortest_path(sections, multiplier=10):
         ps = section.get_ordered_points(p_str)
         resulting_points.extend(ps)
         skip = not section.is_one_point_section
-    plot_data(np.array(resulting_points), np.array(resulting_points), "testing_results")
+    # plot_data(np.array(resulting_points), np.array(resulting_points), "testing_results")
     # Draw each section with index number
     # debug = 0
     # skip = False
@@ -281,7 +248,7 @@ def shortest_path(sections, multiplier=10):
 def get_full_order(m, test_order, dist, points_str, points_to_sections, start_node=None):
     resulting_points = []
     if start_node is not None:
-        resulting_points.append([start_node])
+        resulting_points.append(([start_node], get_random_color()))
     skip = False
     for index in test_order:
         if skip:
@@ -289,10 +256,11 @@ def get_full_order(m, test_order, dist, points_str, points_to_sections, start_no
             continue
         p_str = points_str[index]
         section = points_to_sections[p_str]
+        c = section.color
         ps = section.get_ordered_points(p_str)
-        resulting_points.append(ps)
+        resulting_points.append((ps, c))
         skip = not section.is_one_point_section
-    plot_data_color_connected(np.array(resulting_points), f"m_{m}_d_{dist}_o_{str(test_order)}", dpi=300)
+    plot_data_color_connected(resulting_points, f"m_{m}_d_{dist}_o_{str(test_order)}", dpi=300)
     debug = 0
 
 
@@ -378,22 +346,23 @@ def plot_data_color(data, title, save=False, show=True, dpi=600):
     return ax
 
 
-def plot_data_color_connected(data, title, save=False, show=False, dpi=600):
+def plot_data_color_connected(data, title, save=False, show=True, dpi=600):
     # now lets plot it!
     plt.clf()
     fig = plt.figure(dpi=dpi)
-    ax = Axes3D(fig)
+    ax = Axes3D(fig, auto_add_to_figure=False)
+    fig.add_axes(ax)
     ax.grid(False)
     ax.set_facecolor('white')
     last_point = None
-    for d_grp in data:
+    for d_grp, c in data:
         d = np.array(d_grp).transpose()
         if last_point is not None:
             last_point[0].append(d[0, 0])
             last_point[1].append(d[1, 0])
             last_point[2].append(d[2, 0])
             ax.plot(last_point[0], last_point[1], last_point[2], lw=2, c=color)
-        color = (np.random.uniform(0.1, 0.9), np.random.uniform(0.1, 0.9), np.random.uniform(0.1, 0.9))
+        color = c
         ax.plot(d[0], d[1], d[2], lw=2, c=color)
         last_point = [[d[0, -1]], [d[1, -1]], [d[2, -1]]]
     ax.legend()
@@ -435,7 +404,7 @@ def midpoint(p1, p2):
 
 
 class section:
-    def __init__(self, points, normal):
+    def __init__(self, points, normal, color):
         self.points = np.array(points)
         self.normal = normal
         if len(self.points) > 1:
@@ -450,6 +419,7 @@ class section:
         self.p1_str = str(self.p1)
         self.p2_str = str(self.p2)
         self.is_one_point_section = self.p1_str == self.p2_str
+        self.color = color
 
     def get_other_end(self, p):
         if np.all(np.isclose(p, self.p1)):
@@ -465,7 +435,7 @@ class section:
         n = self.normal * np.array([1, 1, 0])
         n = unit_vector(n)
         p = self.points + n * multiplier
-        return section(p, self.normal)
+        return section(p, self.normal, self.color)
 
     def get_ordered_points(self, p_str):
         if p_str == self.p1_str:
@@ -477,7 +447,7 @@ class section:
         return ps, 1 if self.is_one_point_section else 2
 
 
-def find_dist_of_order(order, sections, multiplier):
+def find_dist_of_order(order, sections, multiplier, turn_cost):
     global cache
     cache = {}
     m_sections = []
@@ -499,15 +469,18 @@ def find_dist_of_order(order, sections, multiplier):
             points.append(s.p2)
             points_str.append(s.p2_str)
             normals.append(n)
+
     edges = np.full((len(points), len(points)), -1., float)
     for index in range(len(order)):
         if index == 0:
             continue
         from_index = order[index - 1]
         to_index = order[index]
+        n1 = normals[from_index]
+        n2 = normals[to_index]
         p = points[from_index]
         p2 = points[to_index]
-        d = dist(p, p2)
+        d = dist(p, p2) + (turn_cost if np.all(n1 != n2) else 0)
         edges[from_index, to_index] = d
 
     start_node = np.array([-0.035274, -0.137386, 1.745499])
@@ -524,30 +497,20 @@ def find_dist_of_order(order, sections, multiplier):
         point_to_index[p] = i
     # unvisited[current] = currentDistance
     m1 = time.perf_counter()
-    found_solution, resulting_dist, resulting_order = move_to2(current, currentDistance, visited,
-                                                               [], best_dist,
-                                                               edges, points_to_sections,
-                                                               point_to_index, points_str)
+    found_solution, resulting_dist, resulting_order = move_to(current, currentDistance, visited,
+                                                              [], best_dist,
+                                                              edges, points_to_sections,
+                                                              point_to_index, points_str)
     print(f"Time: {time.perf_counter() - m1}")
     get_full_order(multiplier, resulting_order, resulting_dist, points_str, points_to_sections, start_node)
     print("Done")
     print(f"Best: order={str(resulting_order)}, dist={resulting_dist}")
-    resulting_points = []
-    skip = False
-    for index in resulting_order:
-        if skip:
-            skip = False
-            continue
-        p_str = points_str[index]
-        section = points_to_sections[p_str]
-        ps = section.get_ordered_points(p_str)
-        resulting_points.extend(ps)
-        skip = not section.is_one_point_section
-    plot_data(np.array(resulting_points), np.array(resulting_points), "test_dist_results")
 
 
 if __name__ == '__main__':
-
+    seed = 214
+    np.random.seed(seed)
+    random.seed(seed)
     wt = Wireframe.from_stl_path('data/in/turbine_v2.stl')
     r = Rotation.from_euler("XYZ", [0, 0, 90], degrees=True).as_matrix()
 
@@ -559,12 +522,18 @@ if __name__ == '__main__':
     fit = []
     points = []
     sections = []
-    for n, g in gps:
-        sections.append(section(g, n))
+    for i, (n, g) in enumerate(gps):
+        sections.append(section(g, n, get_distinct_color(i)))
     # plot_data_color_sections(sections, "te")
-    order = shortest_path(sections, multiplier=10)
+    m = 10
+    tc = 0
 
-    test_order = [4, 5, 0, 1, 17, 16, 9, 10, 8, 7, 21, 20, 6, 13, 14, 12, 11, 15, 18, 19, 3, 2]
-    find_dist_of_order(test_order, sections, 10)
+    order = shortest_path(sections, multiplier=m, turn_cost=tc)
+
+    test_order_GP = [4, 5, 0, 1, 17, 16, 9, 10, 8, 7, 21, 20, 6, 13, 14, 12, 11, 15, 18, 19, 3, 2]
+    find_dist_of_order(test_order_GP, sections, multiplier=m, turn_cost=tc)
+
+    tc_0_best_order = [4, 5, 0, 1, 8, 7, 21, 20, 6, 13, 14, 9, 10, 17, 16, 12, 11, 15, 18, 19, 3, 2]
+    find_dist_of_order(tc_0_best_order, sections, multiplier=m, turn_cost=tc)
 
     debug = 0

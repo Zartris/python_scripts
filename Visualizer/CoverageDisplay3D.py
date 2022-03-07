@@ -9,7 +9,7 @@ from scipy.spatial.transform import Rotation
 from Visualizer.Display3D import Display3D
 from Visualizer.utils.colors import *
 from objects.mesh_base import Wireframe, unit_vector, random_color
-from shortest_path import get_shortest_path
+# from shortest_path import get_shortest_path
 from tranformation.transform import TRotation, Transform
 from utils.folder import get_project_root
 

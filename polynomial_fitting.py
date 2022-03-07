@@ -700,64 +700,6 @@ def np_polyfit(deg, folder="data/in/gp_output", out_prefix="", skip_rest=True):
     plot_axis_color(sections, "axis_plot_color")
     debug = 0
 
-
-def np_polyfit_old(deg):
-    px = readfile("data/in/gp_output/px_160.txt", expand=True)
-    py = readfile("data/in/gp_output/py_160.txt", expand=True)
-    pz = readfile("data/in/gp_output/pz_160.txt", expand=True)
-    data_points = np.concatenate((px, py, pz), axis=1)
-    # data_points = np.concatenate((data_points, pz), axis=1)
-    # Normals
-    nx = readfile("data/in/gp_output/nx_160.txt", expand=True)
-    ny = readfile("data/in/gp_output/ny_160.txt", expand=True)
-    nz = readfile("data/in/gp_output/nz_160.txt", expand=True)
-    normals = np.concatenate((nx, ny, nz), axis=1)
-    data = np.concatenate((data_points, normals), axis=1)
-    # Remove duplicates:
-    data = remove_duplicates(data)
-    split_data = split_data_into_sections(data)
-    for dps in split_data:
-        if len(dps) <= 1:
-            # TODO:: Special case
-            continue
-        t = np.array(range(len(dps)))
-        data_points = dps.transpose()
-
-        fit_dx_eq = polyfit_np_axis(t, data_points[0], t, deg)
-        fit_dy_eq = polyfit_np_axis(t, data_points[1], t, deg)
-        fit_dz_eq = polyfit_np_axis(t, data_points[2], t, deg)
-        plot_data(data_points, [fit_dx_eq, fit_dy_eq, fit_dz_eq], "yes")
-    debug = 0
-
-
-# def old_polyfit():
-#     px = readfile("data/px_160.txt", expand=True)
-#     py = readfile("data/py_160.txt", expand=True)
-#     pz = readfile("data/pz_160.txt", expand=True)
-#     data_points = np.concatenate((px, py, pz), axis=1)
-#     data_points = remove_duplicates(data_points)
-#     d = []
-#     cur_point = data_points[0]
-#     dist = 0
-#     for data_point in data_points:
-#         dist += np.linalg.norm(data_point - cur_point)
-#         debug = 0
-#         d.append(dist)
-#         cur_point = data_point
-#     d = np.array(d)
-#
-#     data_points = data_points.transpose()
-#     full_dist = np.linspace(0, dist, 5000)
-#     # d = np.linspace(0, 1, len(d))
-#
-#     fit_dx_eq = polyfit_np_axis(d, data_points[0], full_dist, deg)
-#     fit_dy_eq = polyfit_np_axis(d, data_points[1], full_dist, deg)
-#     fit_dz_eq = polyfit_np_axis(d, data_points[2], full_dist, deg)
-#
-#     plot_data(data_points, [fit_dx_eq, fit_dy_eq, fit_dz_eq], "yes")
-#     debug = 0
-
-
 def remove_duplicates(data, expected_values=3):
     transpose = False
     if data.shape[0] == expected_values:
