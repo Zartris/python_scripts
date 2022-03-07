@@ -15,7 +15,7 @@ from tranformation.transform import TRotation, Transform
 class Display3D:
     """ A group of objects which can be displayed on a Pygame screen """
 
-    def __init__(self, width, height, name="Display3D", verbose=False):
+    def __init__(self, width, height, camera_info: CameraInfo, name="Display3D", verbose=False):
         super().__init__()
         self.verbose = verbose
         self.width = width
@@ -52,6 +52,8 @@ class Display3D:
                                  image_width=6016, image_height=3376,
                                  render_width=1280, render_height=720,
                                  sensor_width=23.5, sensor_height=15.7)
+
+        self.camera = camera_info
 
         self.camera_translation = np.array([-80, 0, 80]).astype(float)
         self.camera_rpy = np.array([0., 0., 0.])

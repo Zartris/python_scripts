@@ -10,13 +10,14 @@ from Visualizer.Display3D import Display3D
 from Visualizer.utils.colors import *
 from objects.mesh_base import Wireframe, unit_vector, random_color
 # from shortest_path import get_shortest_path
+from tranformation.camera import CameraInfo
 from tranformation.transform import TRotation, Transform
 from utils.folder import get_project_root
 
 
 class CoverageDisplay3D(Display3D):
-    def __init__(self, width, height, verbose=False):
-        super().__init__(width, height, verbose=verbose)
+    def __init__(self, width, height, camera_info: CameraInfo, verbose=False):
+        super().__init__(width, height, camera_info, verbose=verbose)
         self.max_dist_to_viewed_vertice_meter = 15
         self.converage = 0
         self.displayCoverage = True

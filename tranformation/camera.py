@@ -81,6 +81,8 @@ class CameraInfo:
         """
         x = 0 is center of image
         y = 0 is center of image
+        https://www.cse.psu.edu/~rtc12/CSE486/lecture13.pdf mx, my = m_aff
+        https://youtu.be/qByYk6JggQU?t=170 mx, my
         procentage"""
         camera_sensor_w = self.sensor_w  # mm
         camera_sensor_h = self.sensor_h  # mm

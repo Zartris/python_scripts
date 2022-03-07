@@ -12,6 +12,7 @@ from objects.mesh_base import Wireframe
 import numpy as np
 
 from polynomial_fitting import plot_axis
+from tranformation.camera import CameraInfo
 from tranformation.transform import TRotation, Transform
 
 
@@ -41,7 +42,19 @@ def readfile_multiple_values(filename, split_char=" "):
 
 
 if __name__ == '__main__':
-    view = CoverageDisplay3D(1280, 720)
+    # Zenmuse x3 (dji camera) f= 22 or 35 - https://www.dji.com/dk/zenmuse-x3/info  1/2.3 = 6.17 x 4.55  mm = https://en.wikipedia.org/wiki/Image_sensor_format
+    camera_info = CameraInfo(focal=22, FOV=94,
+                             image_width=1280, image_height=720,
+                             render_width=1280, render_height=720,
+                             sensor_width=6.17, sensor_height=4.55)
+
+    # Zenmuse x7 https://www.bhphotovideo.com/lit_files/372177.pdf,  https://www.dji.com/dk/zenmuse-x7/info 23.5×15.7 mm
+    camera_info = CameraInfo(focal=16, FOV=0,
+                             image_width=6016, image_height=3376,
+                             render_width=1280, render_height=720,
+                             sensor_width=23.5, sensor_height=15.7)
+
+    view = CoverageDisplay3D(1280, 720, camera_info)
     wt = Wireframe.from_stl_path('data/in/turbine_v2.stl')
     r = Rotation.from_euler("XYZ", [0, 0, 90], degrees=True).as_matrix()
 
