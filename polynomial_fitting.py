@@ -551,16 +551,18 @@ def split_data_into_sections(data):
     return splitted_points
 
 
-def np_polyfit(deg, folder="data/in/gp_output", out_prefix="", skip_rest=True):
-    px = readfile(f"{folder}/px_160.txt", expand=True)
-    py = readfile(f"{folder}/py_160.txt", expand=True)
-    pz = readfile(f"{folder}/pz_160.txt", expand=True)
+def np_polyfit(deg, folder="data/in/gp_output",
+               filenames=["px_160.txt", "py_160.txt", "pz_160.txt", "nx_160.txt", "ny_160.txt", "nz_160.txt"],
+               out_prefix="", skip_rest=True):
+    px = readfile(f"{folder}/{filenames[0]}", expand=True)
+    py = readfile(f"{folder}/{filenames[1]}", expand=True)
+    pz = readfile(f"{folder}/{filenames[2]}", expand=True)
     data_points = np.concatenate((px, py, pz), axis=1)
     # data_points = np.concatenate((data_points, pz), axis=1)
     # Normals
-    nx = readfile(f"{folder}/nx_160.txt", expand=True)
-    ny = readfile(f"{folder}/ny_160.txt", expand=True)
-    nz = readfile(f"{folder}/nz_160.txt", expand=True)
+    nx = readfile(f"{folder}/{filenames[3]}", expand=True)
+    ny = readfile(f"{folder}/{filenames[4]}", expand=True)
+    nz = readfile(f"{folder}/{filenames[5]}", expand=True)
     normals = np.concatenate((nx, ny, nz), axis=1)
     data = np.concatenate((data_points, normals), axis=1)
 
@@ -569,6 +571,7 @@ def np_polyfit(deg, folder="data/in/gp_output", out_prefix="", skip_rest=True):
     #############################################################
     data = remove_duplicates(data)
     data_points = data[:, :3]
+    data_normals = data[:, 3:]
 
     #############################################################
     # split into sections (by axis)
@@ -590,16 +593,17 @@ def np_polyfit(deg, folder="data/in/gp_output", out_prefix="", skip_rest=True):
         traj.append(new_traj)
     traj = np.array(traj)
     save_traj(f"{out_prefix}fit_noiterp", traj)
-    save_traj(f"{out_prefix}no_fit", data)
+    save_traj(f"{out_prefix}no_fit", data_points)
     plot_axis(data.transpose(), traj, f"{out_prefix}", dpi=100)
-    dist_in_m = 0.05
+    dist_in_m = 0.01
     # for i in range(2, 10):
     #     dist_in_m = i / 100
-    traj = interpolate_dist(dist_in_m, traj)
+    traj, interp_normals = interpolate_dist(dist_in_m, traj, data_normals)
     d = traj[:-1] - traj[1:]
     save_traj(f"{out_prefix}d{str(int(dist_in_m * 100))}cm_interp", traj)
+    save_traj(f"{out_prefix}d{str(int(dist_in_m * 100))}cm_interp_n", interp_normals)
     debug = 0
-    ax = plot_data(data.transpose(), traj, "TEST", show=True)
+    ax = plot_data(data_points.transpose(), traj, "TEST", show=True)
 
     if skip_rest:
         return
@@ -699,6 +703,7 @@ def np_polyfit(deg, folder="data/in/gp_output", out_prefix="", skip_rest=True):
     # plot_axis(data.transpose(), new_traj, "TEST")
     plot_axis_color(sections, "axis_plot_color")
     debug = 0
+
 
 def remove_duplicates(data, expected_values=3):
     transpose = False
@@ -827,17 +832,19 @@ def plot_axis_color(sections, title):
     # # plt.clf()
 
 
-def interpolate_dist(dist_in_m, traj, include_small_sections=False, expected_number_of_values=3):
+def interpolate_dist(dist_in_m, traj, normals, include_small_sections=False, expected_number_of_values=3):
     transposed = False
     if traj.shape[0] == expected_number_of_values:
         traj = traj.transpose()
         transposed = True
     result = []
+    result_ns = []
     numbers = []
     last_dist = 0
-    for i, point in enumerate(traj):
+    for i, (point, n) in enumerate(zip(traj, normals)):
         if i == 0:
             last_point = traj[i]
+            last_normal = n
             continue
 
         dist = np.linalg.norm(point - last_point)
@@ -854,16 +861,22 @@ def interpolate_dist(dist_in_m, traj, include_small_sections=False, expected_num
             print(f"Small section detected: dist={dist}, is_added={include_small_sections}")
             debug = 0
         interp = np.linspace(last_point, point, number)
+        ns = np.linspace(last_normal, last_normal, number)
         if np.all(point == traj[-1]):
             result.append(interp)
+            result_ns.append(ns)
         else:
             if number == 1:
                 result.append(interp)
+                result_ns.append(ns)
             else:
                 result.append(interp[:-1])
+                result_ns.append(ns[:-1])
         last_point = point
+        last_normal = n
         debug = 0
     result = np.concatenate(result, axis=0)
+    result_ns = np.concatenate(result_ns, axis=0)
     diff = np.linalg.norm(result[:-1] - result[1:], axis=1)
     plot_one_axis(diff * 100, None, f"Distance difference in cm between points {dist_in_m}")
     print(diff)
@@ -871,7 +884,8 @@ def interpolate_dist(dist_in_m, traj, include_small_sections=False, expected_num
     if transposed:
         debug = 0
         result = result.transpose()
-    return result
+        result_ns = result_ns.transpose()
+    return result, result_ns
 
 
 def interpolate_dist_rotation(dist_in_m, traj, roations, include_small_sections=False, expected_number_of_values=3,
@@ -924,17 +938,19 @@ def interpolate_dist_rotation(dist_in_m, traj, roations, include_small_sections=
 
 if __name__ == '__main__':
     deg = 1
-    np_polyfit(deg, folder="data/in/cheat_output", out_prefix="cheat_")
+    np_polyfit(deg, folder="data/in/mp_output",
+               filenames=["p162_x.txt", "p162_y.txt", "p162_z.txt", "n162_x.txt", "n162_y.txt", "n162_z.txt"],
+               out_prefix="mp_")
     debug = 0
-    values = readfile_multiple_values("data/in/gp_path.txt", expand=False)
-    values = remove_duplicates(values, 6)
-    pos = values[:, :3]
-    angles = values[:, 3:]
-    debug = 0
-    interp_dist = 0.05
-    result = interpolate_dist_rotation(0.05, pos, angles, plot_prefix="gp_path")
-    writefile_multiple_values(f"data/out/gp_path_d{str(int(interp_dist * 100))}cm_interp.txt",
-                              result)
-    debug = 0
+    # values = readfile_multiple_values("data/in/gp_path.txt", expand=False)
+    # values = remove_duplicates(values, 6)
+    # pos = values[:, :3]
+    # angles = values[:, 3:]
+    # debug = 0
+    # interp_dist = 0.05
+    # result = interpolate_dist_rotation(0.05, pos, angles, plot_prefix="gp_path")
+    # writefile_multiple_values(f"data/out/gp_path_d{str(int(interp_dist * 100))}cm_interp.txt",
+    #                           result)
+    # debug = 0
 
 # polynomial_fit([5, 3, 2, 1], [10, 20, 30, 80])
