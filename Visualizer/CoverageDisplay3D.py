@@ -21,16 +21,16 @@ class CoverageDisplay3D(Display3D):
         self.max_dist_to_viewed_vertice_meter = 15
         self.converage = 0
         self.displayCoverage = True
-        self.only_draw_if_seen = False
-        self.dont_add_to_seen = False
+        self.only_draw_if_seen = True
+        self.dont_add_to_seen = False  # Dont change this
         self.seen_counter = 0
         self.done = False
         self.path = None
-        self.read_path = True
+        self.read_path = False
         self.data = {}
         self.path_color = [random_color() for _ in range(300)]
 
-    def run(self, traj=None):
+    def run(self, traj=None, headless=False):
         """ Display wireframe on screen and respond to keydown events """
         running = True
         key_down = False
@@ -38,9 +38,9 @@ class CoverageDisplay3D(Display3D):
         max_index = len(traj[0])
         self.displaceTraj = self.displaceTraj if traj is not None else False
         self.traj = traj
-
+        target_fps = 200 if not headless else 800
         while running:
-            self.clock.tick(100)
+            self.clock.tick(target_fps)
             if traj is None:
                 self.handle_user_input()
                 self.camera_rpy[1] = 0
@@ -63,11 +63,13 @@ class CoverageDisplay3D(Display3D):
             #     self.path = self.read_json_file()
             # self.path_color = [random_color() for _ in self.path[1]]
             # self.update_objects()
-            self.display()
+            draw = index % self.increment_speed == 0 or self.done
+            draw = draw and not headless
+            self.display(draw=draw)
             if not self.pause:
-                index += self.increment_speed
-                index = min(index, max_index - 1)
-                self.dont_add_to_seen = index == max_index - 1
+                index += 1
+            index = min(index, max_index - 1)
+            self.dont_add_to_seen = index == max_index - 1
             if "windturbine" in self.objects:
                 wt = self.objects["windturbine"]
                 coverage = wt.get_coverage()
@@ -78,11 +80,19 @@ class CoverageDisplay3D(Display3D):
                     self.done = True
                     wt.output_avg_vertice_per_img(index)
                     wt.output_seen_count_per_vertice()
-            pygame.display.update()
+                    wt.output_partial_seen_count_per_vertice()
+            if draw:
+                pygame.display.update()
+            if headless and index % target_fps == 0:
+                self.screen.fill(self.background)
+                self.show_fps()
+                pygame.display.update()
+
         pygame.quit()
 
-    def display(self, verbose=False):
-        self.screen.fill(self.background)
+    def display(self, verbose=False, draw=True):
+        if draw:
+            self.screen.fill(self.background)
         transform_stack = self.get_transform_stack()
 
         if self.displayAxis:
@@ -150,10 +160,14 @@ class CoverageDisplay3D(Display3D):
                 # Check if we are seen the backside of the vertice
                 projected_point = self.ClosestPointOnLine(center, center + normal, np.array([0, 0, 0]))
                 direction = unit_vector(projected_point - center)
-                is_backside = not np.isclose(direction[0], normal[0])
+                # is_backside1 = not np.isclose(direction[0], normal[0])
+                is_backside = not (abs(direction[0] - normal[0]) < 1.e-8)
+                # if is_backside != is_backside1:
+                #     print(f"NOT CLOSE! {direction[0]}, {normal[0]}")
+
                 towards_us_threshold = 0.0
 
-                if self.displayFaces:
+                if self.displayFaces and draw:
                     if obj.seen[index] or not self.only_draw_if_seen:
                         # Only draw faces that face us
                         if towards_us > towards_us_threshold and not is_backside:
@@ -177,7 +191,7 @@ class CoverageDisplay3D(Display3D):
                             if verbose:
                                 self.print_info(f"drawing: {counter}")
                             pygame.draw.polygon(self.screen, color, points_im, 0)
-                if self.displayCenter:
+                if self.displayCenter and draw:
                     color = complement(color)
                     # Only draw faces that face us
                     if towards_us > towards_us_threshold and not is_backside:
@@ -189,18 +203,13 @@ class CoverageDisplay3D(Display3D):
                     if towards_us > towards_us_threshold and not is_backside:
                         normal_w = obj.normals[index]
                         inspection_normal_w = unit_vector(np.array([normal_w[0], normal_w[1], 0]))
-                        camera_view_dir_w = self.camera.t_c2w(self.camera_view_dir).squeeze() - self.camera_translation
+                        camera_view_dir_w = self.camera.t_c2w(
+                            self.camera_view_dir).squeeze() - self.camera_translation
                         towards_us_w = np.dot(unit_vector(inspection_normal_w), unit_vector(camera_view_dir_w))
-
-                        # img = pygame.surfarray.pixels3d(self.screen).copy()
-                        # Local coordinates
-                        # angle1 = np.arccos(towards_us / (
-                        #         np.sqrt(normal[0] ** 2 + normal[1] ** 2 + normal[2] ** 2) * np.sqrt(
-                        #     self.camera_view_dir[0] ** 2 + self.camera_view_dir[1] ** 2 + self.camera_view_dir[
-                        #         2] ** 2)))
                         angle = np.arccos(towards_us_w / (
-                                np.sqrt(inspection_normal_w[0] ** 2 + inspection_normal_w[1] ** 2 + inspection_normal_w[
-                                    2] ** 2) * np.sqrt(
+                                np.sqrt(inspection_normal_w[0] ** 2 + inspection_normal_w[1] ** 2 +
+                                        inspection_normal_w[
+                                            2] ** 2) * np.sqrt(
                             camera_view_dir_w[0] ** 2 + camera_view_dir_w[1] ** 2 + camera_view_dir_w[
                                 2] ** 2)))
                         angle = np.rad2deg(angle)
@@ -208,47 +217,49 @@ class CoverageDisplay3D(Display3D):
                         if abs(angle) < 10 and distance_to_center <= self.max_dist_to_viewed_vertice_meter:
                             center = o.center[index]
                             u, v = self.camera.transform_cam_to_image(center)
-                            points_in = self.point_in_frame(u, v)[0]
+                            points_in = 0
+                            points_in += 1 if self.point_in_frame(u, v)[0] else 0
                             p_im = []
                             for point in vertice:
                                 u, v = self.camera.transform_cam_to_image(point)
                                 p_im.append((u, v))
-                                if not self.point_in_frame(u, v)[0]:
-                                    points_in = False
-                                    break
-                            if points_in:
+                                points_in += 1 if self.point_in_frame(u, v)[0] else 0
 
-                                for j in range(len(p_im)):
-                                    p1 = p_im[j]
-                                    p2 = p_im[(j + 1) % len(p_im)]
-                                    pygame.draw.line(self.screen, YELLOW, p1, p2, 5)
+                            if points_in == 4:
+                                if draw:
+                                    for j in range(len(p_im)):
+                                        p1 = p_im[j]
+                                        p2 = p_im[(j + 1) % len(p_im)]
+                                        pygame.draw.line(self.screen, YELLOW, p1, p2, 5)
                                 if not self.dont_add_to_seen:
                                     self.seen_counter += 1
                                     obj.seen[index] += 1
-                        debug = 0
+                            elif points_in == 3:
+                                if not self.dont_add_to_seen:
+                                    obj.partial_seen[index] += 1
 
-                    # if self.displayEdges:
-                    #     for (n1, n2) in wireframe.edges:
-                    #         if self.perspective:
-                    #             if wireframe.nodes[n1][2] > -self.perspective and nodes[n2][2] > -self.perspective:
-                    #                 z1 = self.perspective / (self.perspective + nodes[n1][2])
-                    #                 x1 = self.width / 2 + z1 * (nodes[n1][0] - self.width / 2)
-                    #                 y1 = self.height / 2 + z1 * (nodes[n1][1] - self.height / 2)
-                    #
-                    #                 z2 = self.perspective / (self.perspective + nodes[n2][2])
-                    #                 x2 = self.width / 2 + z2 * (nodes[n2][0] - self.width / 2)
-                    #                 y2 = self.height / 2 + z2 * (nodes[n2][1] - self.height / 2)
-                    #
-                    #                 pygame.draw.aaline(self.screen, colour, (x1, y1), (x2, y2), 1)
-                    #         else:
-                    #             pygame.draw.aaline(self.screen, colour, (nodes[n1][0], nodes[n1][1]),
-                    #                                (nodes[n2][0], nodes[n2][1]), 1)
-                    #
-                    # if self.displayNodes:
-                    #     for node in nodes:
-                    #         pygame.draw.circle(self.screen, colour, (int(node[0]), int(node[1])), self.nodeRadius, 0)
+                # if self.displayEdges:
+                #     for (n1, n2) in wireframe.edges:
+                #         if self.perspective:
+                #             if wireframe.nodes[n1][2] > -self.perspective and nodes[n2][2] > -self.perspective:
+                #                 z1 = self.perspective / (self.perspective + nodes[n1][2])
+                #                 x1 = self.width / 2 + z1 * (nodes[n1][0] - self.width / 2)
+                #                 y1 = self.height / 2 + z1 * (nodes[n1][1] - self.height / 2)
+                #
+                #                 z2 = self.perspective / (self.perspective + nodes[n2][2])
+                #                 x2 = self.width / 2 + z2 * (nodes[n2][0] - self.width / 2)
+                #                 y2 = self.height / 2 + z2 * (nodes[n2][1] - self.height / 2)
+                #
+                #                 pygame.draw.aaline(self.screen, colour, (x1, y1), (x2, y2), 1)
+                #         else:
+                #             pygame.draw.aaline(self.screen, colour, (nodes[n1][0], nodes[n1][1]),
+                #                                (nodes[n2][0], nodes[n2][1]), 1)
+                #
+                # if self.displayNodes:
+                #     for node in nodes:
+                #         pygame.draw.circle(self.screen, colour, (int(node[0]), int(node[1])), self.nodeRadius, 0)
         # print(seen_counter)
-        if self.displaceTraj:
+        if self.displaceTraj and draw:
             last_point = None
             for i, p in enumerate(self.traj[1]):
                 if i % 100 == 0 or i == 0:
@@ -258,7 +269,7 @@ class CoverageDisplay3D(Display3D):
                         continue
                     pygame.draw.line(self.screen, RED, last_point, p_im, width=5)
                     last_point = p_im
-        if self.path is not None:
+        if self.path is not None and draw:
             indices, path, start_node = self.path
             u, v = self.camera.transform_world_to_image(start_node)
             last_node = (u, v)
@@ -272,7 +283,7 @@ class CoverageDisplay3D(Display3D):
                 self.data = self.read_json_file()
             except:
                 pass
-            if "current_path" in self.data:
+            if "current_path" in self.data and draw:
                 current_path = self.data["current_path"]
                 if "windturbine" in self.objects:
                     wt = self.objects["windturbine"]
@@ -287,12 +298,11 @@ class CoverageDisplay3D(Display3D):
                         last_node = (u, v)
             print("path read")
 
-        if self.displayFPS:
+        if self.displayFPS and draw:
             self.show_fps()
 
-        if self.displayCoverage:
+        if self.displayCoverage and draw:
             self.show_coverage()
-        # pygame.display.flip()
 
     def point_in_frame(self, u, v):
         u_in = (0 <= u / self.camera.render_size[0] <= 1)

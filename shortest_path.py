@@ -89,8 +89,8 @@ def dist(p_to, p_from=np.array([0, 0, 0])):
     return np.linalg.norm(v)
 
 
-def move_to(current: int, currentDistance: float, visited: list, node_order: list, global_best_dist: float, edges,
-            points_to_sections, point_to_index, points):
+def jump_to_node(current: int, currentDistance: float, visited: list, node_order: list, global_best_dist: float, edges,
+                 points_to_sections, point_to_index, points):
     # Set visited:
     visited[current] = 1
     node_order.append(int(current))
@@ -139,12 +139,12 @@ def move_to(current: int, currentDistance: float, visited: list, node_order: lis
         if distance == -1:
             continue
         newDistance = currentDistance + distance
-        finished, resulting_dist, resulting_order = move_to(neighbour_index, newDistance,
-                                                            visited.copy(),
-                                                            node_order.copy(),
-                                                            global_best_dist, edges,
-                                                            points_to_sections, point_to_index,
-                                                            points)
+        finished, resulting_dist, resulting_order = jump_to_node(neighbour_index, newDistance,
+                                                                 visited.copy(),
+                                                                 node_order.copy(),
+                                                                 global_best_dist, edges,
+                                                                 points_to_sections, point_to_index,
+                                                                 points)
         # if resulting_order == [4, 5, 0, 1, 17, 16, 9, 10, 8, 7, 21, 20, 6, 13, 14, 12, 11, 15, 18, 19, 3, 2]:
         #     debug = 0
         #     # print(f"c:{currentDistance}, nd:{newDistance}, rd:{resulting_dist}, ro:{resulting_order}")
@@ -266,10 +266,10 @@ def shortest_path(sections: List[Section], multiplier=10, turn_cost=0, test_all_
             point_to_index[p] = i
         # unvisited[current] = currentDistance
         m1 = time.perf_counter()
-        found_solution, resulting_dist, resulting_order = move_to(current, currentDistance, visited,
-                                                                  [], best_dist,
-                                                                  edges, points_to_sections,
-                                                                  point_to_index, points_str)
+        found_solution, resulting_dist, resulting_order = jump_to_node(current, currentDistance, visited,
+                                                                       [], best_dist,
+                                                                       edges, points_to_sections,
+                                                                       point_to_index, points_str)
         print(f"Time: {time.perf_counter() - m1}")
         get_full_order(multiplier, resulting_order, resulting_dist, points_str, points_to_sections, start_node)
         if found_solution and resulting_dist < best_dist:
@@ -527,10 +527,10 @@ def find_dist_of_order(order, sections, multiplier, turn_cost):
         point_to_index[p] = i
     # unvisited[current] = currentDistance
     m1 = time.perf_counter()
-    found_solution, resulting_dist, resulting_order = move_to(current, currentDistance, visited,
-                                                              [], best_dist,
-                                                              edges, points_to_sections,
-                                                              point_to_index, points_str)
+    found_solution, resulting_dist, resulting_order = jump_to_node(current, currentDistance, visited,
+                                                                   [], best_dist,
+                                                                   edges, points_to_sections,
+                                                                   point_to_index, points_str)
     print(f"Time: {time.perf_counter() - m1}")
     get_full_order(multiplier, resulting_order, resulting_dist, points_str, points_to_sections, start_node)
     print("Done")
