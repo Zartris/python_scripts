@@ -358,6 +358,27 @@ class Transform(object):
         v = self.translate(v)
         return np.round(v, decimals=decimals)
 
+    def apply_to_matrix(self, v, decimals: int = 12):
+        test = v[0, 0]
+        res10 = self.apply_to(v[0, 0])
+        res20 = self.apply_to(v[0, 1])
+        res30 = self.apply_to(v[0, 2])
+
+        scale_m = self.scaling.matrix
+        rotate_m = self.rotation.get_matrix()
+        rotate_and_scale_m = rotate_m.dot(scale_m)
+        translation_m = self.translation
+
+        m = v.reshape(-1, 3)
+        m = np.expand_dims(m, axis=-1)
+
+        m_sr = rotate_and_scale_m.dot(m)
+        m_sr = np.rollaxis(m_sr.squeeze(), 1)
+
+        m_sr = m_sr.reshape(-1, 3, 3)
+        m_srt = m_sr + translation_m.squeeze()
+        return np.round(m_srt, decimals=decimals)
+
     def scale(self, v: np.ndarray) -> np.ndarray:
         if v.shape[0] != self.scaling.shape[0]:
             v = v.reshape((self.scaling.shape[0], 1))
@@ -415,6 +436,7 @@ class Transform(object):
         rotation = rotation.T
         self.rotation = TRotation().set_matrix(rotation, axis_order)
         return self
+
 
 #
 # camera_state_in_drone_coord = State({'x': 0.0, 'y': 0.0, 'z': -5.0},

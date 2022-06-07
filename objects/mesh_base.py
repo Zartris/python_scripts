@@ -92,6 +92,7 @@ class Wireframe:
         self.normals = self.compute_normals() if normals is None else normals
         self.center = self.compute_center()
         self.seen = np.zeros(len(self.vertices), int)
+        self.partial_seen = np.zeros(len(self.vertices), int)
 
     def add_vertices(self, vertice_array):
         """ Append 1s to a list of 3-tuples and add to self.nodes. """
@@ -128,6 +129,11 @@ class Wireframe:
         print("\n --- Coverage --- ")
         print(f"  total amount covered: {(len(np.where(self.seen >= 1)[0]) / len(self.seen)) * 100}%")
         print(f"  total triangles: {len(self.seen)} and covered: {len(np.where(self.seen >= 1)[0])}")
+        index = np.where(self.seen == 0)
+        par_seen = self.partial_seen[index]
+        number_par = len(np.where(par_seen >= 1)[0])
+        print(
+            f"  out of triangles not covered ({len(np.where(self.seen ==0)[0])}) triangle partially covered is:{len(np.where(par_seen >= 1)[0])}")
 
     def output_avg_vertice_per_img(self, num_img):
         s = np.sum(self.seen)
@@ -140,22 +146,34 @@ class Wireframe:
         for i, count in enumerate(self.seen):
             print(f"  i={i}: {count}")
 
+    def output_partial_seen_count_per_vertice(self):
+        print("\n --- Partial seen count per vertice --- ")
+        for i, count in enumerate(self.partial_seen):
+            print(f"  i={i}: {count}")
+
     def get_coverage(self):
         return (len(np.where(self.seen >= 1)[0]) / len(self.seen)) * 100
 
     def get_coverage_text(self):
         return f"{len(np.where(self.seen >= 1)[0])}/{len(self.seen)}"
 
-    def transform(self, transform:Transform):
+    def transform(self, transform: Transform):
         """ Apply a transformation defined by a transformation matrix. """
-        transformed_vertices = []
-        for vertice in self.vertices:
-            v = []
-            for point in vertice:
-                p = transform(point)
-                v.append(p)
-            transformed_vertices.append(v)
-        return Wireframe(np.array(transformed_vertices).squeeze(), vertice_colors=self.vertice_colors)
+        # start = time.perf_counter()
+        # transformed_vertices = []
+        #
+        # for vertice in self.vertices:
+        #     v = []
+        #     for point in vertice:
+        #         p = transform(point)
+        #         v.append(p)
+        #     transformed_vertices.append(v)
+        # print(f"handmade time: {time.perf_counter() - start}")
+        # m2 = np.array(transformed_vertices).squeeze()
+        # start = time.perf_counter()
+        # print(f"all at once time: {time.perf_counter() - start} and is equal {np.all(m == m2)}\n\n")
+        m = transform.apply_to_matrix(self.vertices)
+        return Wireframe(m, vertice_colors=self.vertice_colors)
 
     def find_centre(self):
         """ Find the spatial centre by finding the range of the x, y and z coordinates. """
@@ -211,7 +229,6 @@ class Wireframe:
     def update(self):
         """ Override this function to control wireframe behaviour. """
         pass
-
 
     @staticmethod
     def from_stl(stl):

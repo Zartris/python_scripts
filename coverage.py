@@ -3,6 +3,9 @@ Adapted from trimesh example raytrace.py
 ----------------
 Install `pyembree` for a speedup (600k+ rays per second)
 """
+from functools import partial
+
+import line_profiler
 from scipy.spatial.transform.rotation import Rotation
 from stl import mesh
 
@@ -69,4 +72,16 @@ if __name__ == '__main__':
     data = None
     data = readfile_multiple_values("data/in/GT_traj.txt", ",")
     # plot_axis(data[1].transpose(),data[1].transpose(),"axis")
-    view.run(data)
+    profiling = False # Profiling makes it run very slow
+    headless = True
+    if profiling:
+        p = line_profiler.LineProfiler()
+        p.add_function(view.display)
+        lp_wrapper = p(view.run)
+        try:
+            lp_wrapper(data, True)
+        except:
+            print("Hi")
+        p.print_stats()
+    else:
+        view.run(data, headless)

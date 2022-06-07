@@ -152,7 +152,7 @@ class Display3D:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-                exit()
+                # exit()
             if event.type == pygame.KEYDOWN:
                 self.keys_down.append(event.key)
             elif event.type == pygame.KEYUP:
@@ -178,7 +178,7 @@ class Display3D:
     def handle_key_input(self, key):
         if key == pygame.K_ESCAPE:
             pygame.quit()
-            exit()
+            # exit()
         elif key == pygame.K_DOWN or key == ord('s'):
             translate = self.camera.t_c2w(np.array([-1, 0, 0])).squeeze()
             self.camera_translation = translate
