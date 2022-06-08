@@ -43,23 +43,27 @@ def get_xticks_from_data(df):
 
 
 if __name__ == '__main__':
-    title = 'PROJECT XYZ'
+    title = 'Timeline for visit abroad'
     bg_color = '#36454F'
     text_color = 'w'
     show_minor = False
+    dpi = 400
     y_label_rotation = 0
     x_label_rotation = 45
-    margin_left = 0.15
+    margin_left = 0.13
     margin_right = 0.02
     margin_top = 0
     margin_bottom = 0.1
     make_legends = False
     data_path = Path("data\\gantt_timeline_abroad.xlsx")
+    save = True
 
     ##### DATA LOAD #####
     df = pd.read_excel(str(data_path))
+    # Remove empty rows or invalid rows
+    df.dropna(inplace=True)
+    # Sort the data by start and end date:
     df.sort_values(by=['Start', 'End'], ascending=False, inplace=True)
-
     # project start date
     proj_start = df.Start.min()
 
@@ -104,7 +108,7 @@ if __name__ == '__main__':
         ax1.set_yticks([])
     else:
         fig, ax = plt.subplots(figsize=(20, 8), facecolor=bg_color)  # create figure and axes
-    fig.set_dpi(100)  # 400 is good quality
+    fig.set_dpi(dpi)  # 400 is good quality
     plt.subplots_adjust(left=margin_left, bottom=margin_bottom, right=1 - margin_right, top=1 - margin_top,
                         wspace=0, hspace=0)
     ax.set_facecolor(bg_color)
@@ -154,5 +158,8 @@ if __name__ == '__main__':
 
     plt.suptitle(title, color=text_color)
 
-    plt.show()
-    # plt.savefig('gantt.png', facecolor='#36454F')
+
+    if save:
+        plt.savefig(str(Path(data_path.parent, 'gantt.png')))
+    else:
+        plt.show()
