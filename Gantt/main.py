@@ -6,14 +6,18 @@ import numpy as np
 import colorhash
 from matplotlib.patches import Patch
 from calendar import monthrange
-
+import math
 # create a column with the color for each department
 from pandas import Timestamp
 
 
 def color(row):
-    c_dict = {'MKT': '#E64646', 'FIN': '#E69646', 'ENG': '#34D05C', 'PROD': '#34D0C3', 'IT': '#3475D0'}
-    return colorhash.ColorHash(row.TaskDescription).hex
+    auto_color = colorhash.ColorHash(row.TaskDescription).hex
+    if 'Color' not in row:  # Check if we have a color category
+        return auto_color
+    if row.Color == 'auto' or not isinstance(row.Color, str):
+        return auto_color
+    return row.Color
 
 
 def get_number_of_days_in_month(year, month):
@@ -47,7 +51,7 @@ if __name__ == '__main__':
     bg_color = '#36454F'
     text_color = 'w'
     show_minor = False
-    dpi = 400
+    dpi = 800
     y_label_rotation = 0
     x_label_rotation = 45
     margin_left = 0.13
@@ -61,7 +65,7 @@ if __name__ == '__main__':
     ##### DATA LOAD #####
     df = pd.read_excel(str(data_path))
     # Remove empty rows or invalid rows
-    df.dropna(inplace=True)
+    df.dropna(how='all', inplace=True)
     # Sort the data by start and end date:
     df.sort_values(by=['Start', 'End'], ascending=False, inplace=True)
     # project start date
@@ -87,6 +91,7 @@ if __name__ == '__main__':
 
     ##### PLOT #####
     if make_legends:
+        print("legends are not fully customizable yet, you have to manually implement these values:")
         fig, (ax, ax1) = plt.subplots(2, figsize=(16, 6), gridspec_kw={'height_ratios': [12, 1]}, facecolor=bg_color)
         ax1.set_facecolor(bg_color)
         # ##### LEGENDS #####
@@ -157,7 +162,6 @@ if __name__ == '__main__':
     ax.spines['bottom'].set_color('w')
 
     plt.suptitle(title, color=text_color)
-
 
     if save:
         plt.savefig(str(Path(data_path.parent, 'gantt.png')))
