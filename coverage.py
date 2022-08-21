@@ -73,7 +73,7 @@ if __name__ == '__main__':
     data = readfile_multiple_values("data/in/GT_traj.txt", ",")
     # plot_axis(data[1].transpose(),data[1].transpose(),"axis")
     profiling = False # Profiling makes it run very slow
-    headless = True
+    headless = False
     if profiling:
         p = line_profiler.LineProfiler()
         p.add_function(view.display)

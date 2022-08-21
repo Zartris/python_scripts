@@ -180,10 +180,10 @@ class Display3D:
             pygame.quit()
             # exit()
         elif key == pygame.K_DOWN or key == ord('s'):
-            translate = self.camera.t_c2w(np.array([-1, 0, 0])).squeeze()
+            translate = self.camera.t_c2w(np.array([1, 0, 0])).squeeze()
             self.camera_translation = translate
         elif key == pygame.K_UP or key == ord('w'):
-            translate = self.camera.t_c2w(np.array([1, 0, 0])).squeeze()
+            translate = self.camera.t_c2w(np.array([-1, 0, 0])).squeeze()
             self.camera_translation = translate
         elif key == pygame.K_LEFT or key == ord('a'):
             translate = self.camera.t_c2w(np.array([0, 1, 0])).squeeze()
@@ -192,9 +192,9 @@ class Display3D:
             translate = self.camera.t_c2w(np.array([0, -1, 0])).squeeze()
             self.camera_translation = translate
         elif key == ord('q'):
-            self.camera_rpy[2] += 90
+            self.camera_rpy[2] += 30
         elif key == ord('e'):
-            self.camera_rpy[2] -= 90
+            self.camera_rpy[2] -= 30
         elif key == ord('f'):
             self.use_orbit = not self.use_orbit
             self.print_info(f"orbit mode: {self.use_orbit}")
