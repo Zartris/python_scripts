@@ -63,11 +63,11 @@ class CoverageDisplay3D(Display3D):
             #     self.path = self.read_json_file()
             # self.path_color = [random_color() for _ in self.path[1]]
             # self.update_objects()
-            draw = index % self.increment_speed == 0 or self.done
+            draw = self.increment_speed == 0 or index % self.increment_speed == 0 or self.done
             draw = draw and not headless
             self.display(draw=draw)
-            if not self.pause:
-                index += 1
+            if self.increment_speed != 0:
+                index = index + 1 if self.increment_speed > 0 else index - 1
             index = min(index, max_index - 1)
             self.dont_add_to_seen = index == max_index - 1
             if "windturbine" in self.objects:
