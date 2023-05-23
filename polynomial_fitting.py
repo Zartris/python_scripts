@@ -938,9 +938,9 @@ def interpolate_dist_rotation(dist_in_m, traj, roations, include_small_sections=
 
 if __name__ == '__main__':
     deg = 1
-    np_polyfit(deg, folder="data/in/mp_output",
-               filenames=["p162_x.txt", "p162_y.txt", "p162_z.txt", "n162_x.txt", "n162_y.txt", "n162_z.txt"],
-               out_prefix="mp_")
+    np_polyfit(deg, folder="data/out",
+               filenames=["test_full_path_x.txt", "test_full_path_y.txt", "test_full_path_z.txt", "n162_x.txt", "n162_y.txt", "n162_z.txt"],
+               out_prefix="full_")
     debug = 0
     # values = readfile_multiple_values("data/in/gp_path.txt", expand=False)
     # values = remove_duplicates(values, 6)

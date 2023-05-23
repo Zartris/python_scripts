@@ -271,15 +271,17 @@ def shortest_path(sections: List[Section], multiplier=10, turn_cost=0, test_all_
                                                                        edges, points_to_sections,
                                                                        point_to_index, points_str)
         print(f"Time: {time.perf_counter() - m1}")
-        get_full_order(multiplier, resulting_order, resulting_dist, points_str, points_to_sections, start_node)
+        points = get_full_order(multiplier, resulting_order, resulting_dist, points_str, points_to_sections, start_node)
         if found_solution and resulting_dist < best_dist:
             best_dist = resulting_dist
             best_order = resulting_order
+            best_points = np.concatenate(points)
             print(f"Best: order={str(best_order)}, dist={best_dist}")
         if not test_all_starting_positions:
             break
     print("Done")
     print(f"Best: order={str(best_order)}, dist={best_dist}")
+    save_traj("test_full_path", best_points)
     resulting_points = []
     point_normals = []
     skip = False
@@ -317,6 +319,7 @@ def shortest_path(sections: List[Section], multiplier=10, turn_cost=0, test_all_
 
 
 def get_full_order(m, test_order, dist, points_str, points_to_sections, start_node=None):
+    points = []
     resulting_points = []
     if start_node is not None:
         resulting_points.append(([start_node], get_random_color()))
@@ -329,10 +332,12 @@ def get_full_order(m, test_order, dist, points_str, points_to_sections, start_no
         section = points_to_sections[p_str]
         c = section.color
         ps = section.get_ordered_points(p_str)
+        points.append(np.array(ps))
         resulting_points.append((ps, c))
         skip = not section.is_one_point_section
     plot_data_color_connected(resulting_points, f"m_{m}_d_{dist}_o_{str(test_order)}", dpi=300)
     debug = 0
+    return points
 
 
 def grouping(obj):
